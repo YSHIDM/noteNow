@@ -1,0 +1,217 @@
+#!/bin/bash
+if [ -z "${NOTE_ROOT}" ]; then
+  root_dir=$(dirname "$(readlink -f "$0")")
+else
+  root_dir=$NOTE_ROOT
+fi
+
+if [ -z "${NOTE_NAME}" ]; then
+  filename="note.txt"
+else
+  filename=$NOTE_NAME
+fi
+
+if [ -z "${NOTE_SECRET}" ]; then
+  secret_note="secret.txt"
+else
+  secret_note=$NOTE_SECRET
+fi
+
+  echo "NOTE_ROOT: $NOTE_ROOT"
+  echo "NOTE_NAME: $NOTE_NAME"
+  echo "NOTE_SECRET: $NOTE_SECRET"
+
+
+# root_dir=$(dirname "$(readlink -f "$0")")
+path="notes"
+# 默认文件名
+# filename="note.txt"
+now=$(date '+%Y-%m-%d %H:%M:%S >| ')
+row=0
+# 处理命令行参数
+while getopts ":f:s:c:vr:l:g:bniad:m:h" opt; do
+  case $opt in
+    f)
+      filename="$OPTARG"
+      ;;
+    s)
+      filename=$secret_note
+      content="$OPTARG"
+      ;;
+    c)
+      content="$OPTARG"
+      ;;
+    v)
+      line_count="$OPTARG"
+      # 显示文件内容
+      echo "$filename内容："
+      cat "$root_dir/$path/$filename"
+      exit 0
+      ;;
+    r)
+      for arg in "$@"; do
+        if [ "$arg" = "-l" ]; then
+          ok=1
+        fi
+      done
+      if [ "$ok" = 1 ]; then
+        row="$OPTARG"
+      else
+        echo "需要 -l"
+        exit 0
+      fi
+      ;;
+    l)
+      # 显示最后n行
+      line_count="$OPTARG"
+      if [ "$row" -ne 0 ]; then
+        # start_line=$((row-line_count))
+        echo "$filename 第 $((row-line_count+1)) 行到 $row 行内容："
+        head -n "$row" "$root_dir/$path/$filename" | tail -n "$line_count"
+      else
+        echo "$filename 最后 $line_count 行内容："
+        tail -n "$line_count" "$root_dir/$path/$filename"
+      fi
+      # tail -n "$line_count" "$path/$filename"
+      exit 0
+      ;;
+    b)
+      # backup
+      backup_dir="$root_dir/backup/"
+      if [ ! -d "$backup_dir" ]; then
+        mkdir "$backup_dir"
+      fi
+      backup_filename="backup-${filename%.txt}_$(date '+%Y%m%d%H%M%S').txt"
+      cp "$root_dir/$path/$filename" "$backup_dir/$backup_filename"
+      echo "备份文件: $backup_filename"
+      exit 0
+      ;;
+    n)
+      # new
+      backup_dir="$root_dir/archive"
+      if [ ! -d "$backup_dir" ]; then
+        mkdir "$backup_dir"
+      fi
+      archive_filename="archive-${filename%.txt}_$(date '+%Y%m%d%H%M%S').txt"
+      mv "$root_dir/$path/$filename" "$backup_dir/$archive_filename"
+      touch "$root_dir/notes/$filename"
+      echo "备份文件: $archive_filename"
+      exit 0
+      ;;
+    g)
+      # 搜索 https://cn.linux-console.net/?p=29447
+      # grep -E '^([^[:space:]]+[[:space:]]+){3}(([[:digit:]]+(-|:)){2}[[:digit:]]+[[:space:]]*){2}' note.txt
+      # 2024-07-02 13:37:25 >| 2024-07-02 13:37:25
+      search_str="$OPTARG"
+      echo "搜索: $search_str"
+      grep -inE "$search_str" "$root_dir/$path/$filename"
+      exit 0
+      ;;
+    i)
+        echo "ln 链接参考: ln -s $root_dir/note /usr/local/bin/note"
+      if ! [ -x "$(command -v note)" ]; then
+        echo "ln 链接参考: ln -s $root_dir/note /usr/local/bin/note"
+      else
+        echo "note 已创建链接"
+        echo "删除链接参考: rm /usr/local/bin/note"
+      fi
+      echo "自定义笔记路径与名称：$root_dir"
+      echo "echo \"export NOTE_ROOT=\"\\\"$root_dir\\\"\"\" >> /etc/profile "
+      echo "echo \"export NOTE_NAME=\"\\\"note.txt\\\"\"\" >> /etc/profile "
+      echo "echo \"export NOTE_SECRET=\"\\\"secret.txt\\\"\"\" >> /etc/profile "
+      echo "echo \"source /etc/profile\">> ~/.bashrc"
+      echo "echo \"source /etc/profile\">> ~/.zshrc"
+      exit 0
+      ;;
+    a)
+      # shellcheck disable=SC2005 
+      echo "$(ls "$root_dir/$path")" # 保持换行
+      exit 0
+      ;;
+    d)
+      for arg in "$@"; do
+        if [ "$arg" = "-c" ]; then
+          ok=1
+        elif [ "$arg" = "-s" ]; then
+          ok=1
+        fi
+      done
+      if [ "$ok" = 1 ]; then
+        echo 笔记位置错误
+        exit 0
+      fi
+      dir_type="$OPTARG"
+      if [ "$dir_type" = "n" ]; then
+        path="notes"
+      elif [ "$dir_type" = "a" ]; then
+        path="archive"
+      elif [ "$dir_type" = "b" ]; then
+        path="backup"
+      fi
+      # grep -r -l '随便' ./archive/*note1_* | xargs grep -n '随便'
+      ;;
+    m)
+      search_str="$OPTARG"
+      echo "搜索: $search_str"
+      fs=$(grep -rl "$search_str" "$root_dir/$path")
+      echo "匹配文件:"
+      echo "$fs"
+      echo "匹配内容:"
+      echo "$fs" | xargs grep -n "$search_str"
+      exit 0
+      ;;
+    h)
+      # 显示帮助信息
+      echo "链接: ln -s /path/to/note /usr/local/bin/note"
+      echo "用法1: note [内容]。向默认文件添加内容"
+      echo "用法2: note -f [文件名] [[-c] [内容]]。向指定文件添加内容"
+      echo "用法3: note [选项] [参数]"
+      echo "选项:"
+      echo "  -f <file>     (file)    指定要写入的文件（默认值：note.txt）"
+      echo "  -c <content>  (content) 向文件添加内容（默认值：note.txt）"
+      echo "  -s <content>  (view)    等于 note -f secret.txt -c [content]"
+      echo "                          只是一个备用笔记本"
+      echo "  -v            (view)    查看文件的内容"
+      echo "  -r <n>        (row)     指定行数"
+      echo "                          note -r 8 -l 4，显示 note.txt 第 5 至第 8 行"
+      echo "  -l <n>        (last)    查看文件的最后 n 行"
+      echo "                          文件末尾空行不算，没有空行会有 # 提示"
+      echo "  -b            (backup)  复制文件：backup-(文件名)-(日期).txt"
+      echo "  -n            (new)     文件重命名：archive-(文件名)-(日期).txt"
+      echo "                          之后的笔记会在新文件中，默认 note.txt"
+      echo "  -g <search>   (grep)    搜索，使用参数 -inE"
+      echo "  -i            (install) 创建链接参考"
+      echo "  -a            (all)     列出指定文件夹下的所有笔记"
+      echo "  -d <n|b|a>    (dir)     指定文件夹"
+      echo "                          a：archive，b：backup，n：notes，默认 notes"
+      echo "  -m <search>   (memory)  批量搜索指定文件夹下所有文件"
+      echo "                          根据搜索条件列出文件名和匹配行"
+      echo "                          h (history) 不能用了"
+      echo "  -h            (help)    显示此帮助消息"
+      exit 0
+      ;;
+    \?)
+      echo "错误选项: -$OPTARG" >&2
+      exit 1
+      ;;
+    :)
+      echo "选项 -$OPTARG 需要一个参数" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# 检查参数数量
+if [ $# -eq 1 ]; then
+  content="$1"
+fi
+if [ ! -d "$root_dir/$path" ]; then
+  mkdir "$root_dir/$path"
+fi
+# 将内容添加到文件
+echo "$now" >> "$root_dir/$path/$filename"
+echo "$content" >> "$root_dir/$path/$filename"
+
+# 确认内容已添加
+echo "$filename 新增内容:"
+echo "$content"
